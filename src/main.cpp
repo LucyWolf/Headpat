@@ -32,6 +32,18 @@
 int motorStrength = 255;  // motor PWM strength (0-255), adjustable via serial
 
 // ═══════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════
+String formatUptime() {
+  unsigned long s = millis() / 1000;
+  unsigned long m = s / 60;
+  unsigned long h = m / 60;
+  char buf[16];
+  sprintf(buf, "%02lu:%02lu:%02lu", h, m % 60, s % 60);
+  return String(buf);
+}
+
+// ═══════════════════════════════════════════
 //  GLOBAL VARIABLES
 // ═══════════════════════════════════════════
 BLEUart    bleuart;
@@ -100,7 +112,7 @@ void shutdownAnimation() {
 //  PAIRING MODE
 // ═══════════════════════════════════════════
 void startPairingMode() {
-  Serial.println("[PAIRING] Mode START");
+  Serial.println("[PAIRING] Mode START (20s)");
   pairingMode  = true;
   pairingStart = millis();
   Bluefruit.Advertising.start(0);
@@ -110,8 +122,9 @@ void stopPairingMode() {
   Serial.println("[PAIRING] Mode STOP");
   pairingMode = false;
   digitalWrite(LED_PIN, LOW);
+  // Keep advertising when disconnected so dongle can auto-reconnect
   if (!connected) {
-    Bluefruit.Advertising.stop();
+    Bluefruit.Advertising.start(0);
   }
 }
 
@@ -204,9 +217,8 @@ void setup() {
   bleuart.begin();
 
   Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
-  Bluefruit.Advertising.addTxPower();
   Bluefruit.Advertising.addService(ecosystemSvc);  // custom UUID — dongle scans for this
-  Bluefruit.ScanResponse.addName();
+  Bluefruit.Advertising.addName();                 // name in ADV so dongle can read it on connect
 
   // Auto-restart advertising after disconnect
   Bluefruit.Advertising.restartOnDisconnect(true);
@@ -226,11 +238,53 @@ void loop() {
   if (Serial.available()) {
     String cmd = Serial.readStringUntil('\n');
     cmd.trim();
+
     if (cmd.startsWith("s=")) {
       int val = constrain(cmd.substring(2).toInt(), 0, 255);
       motorStrength = val;
       Serial.print("[SYS] Motor strength set to: ");
       Serial.println(motorStrength);
+
+    } else if (cmd == "info") {
+      Serial.println("info");
+      Serial.println("HeatPett v" VERSION);
+      Serial.println("Board: nRF52840");
+      Serial.print  ("Connected: ");    Serial.println(connected   ? "YES" : "NO");
+      Serial.print  ("Pairing mode: "); Serial.println(pairingMode ? "YES" : "NO");
+      Serial.print  ("Motor strength: "); Serial.println(motorStrength);
+      Serial.print  ("Battery: "); Serial.print(batteryPercent()); Serial.println("%");
+      Serial.print  ("Uptime: "); Serial.println(formatUptime());
+
+    } else if (cmd == "pairing" || cmd == "pair") {
+      Serial.println("pairing");
+      if (pairingMode) stopPairingMode();
+      else startPairingMode();
+
+    } else if (cmd == "reboot") {
+      Serial.println("reboot");
+      Serial.println("Rebooting...");
+      delay(200);
+      NVIC_SystemReset();
+
+    } else if (cmd == "dfu") {
+      Serial.println("dfu");
+      Serial.println("Entering UF2 bootloader...");
+      delay(200);
+      NRF_POWER->GPREGRET = 0x57;
+      NVIC_SystemReset();
+
+    } else if (cmd == "uptime") {
+      Serial.println("uptime");
+      Serial.print("Uptime: "); Serial.println(formatUptime());
+
+    } else if (cmd == "battery") {
+      Serial.println("battery");
+      Serial.print("Battery: "); Serial.print(batteryPercent()); Serial.println("%");
+
+    } else if (cmd == "meow") {
+      Serial.println("meow");
+      Serial.println("(^=◕ᴥ◕=^)");
+      Serial.println("HeatPett says: purrrr...");
     }
   }
 
