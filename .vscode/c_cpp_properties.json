@@ -8,8 +8,8 @@
         {
             "name": "PlatformIO",
             "includePath": [
-                "C:/Users/wolfi/Dokumente/PlatformIO/Projects/vibration_test/HeatPett/include",
-                "C:/Users/wolfi/Dokumente/PlatformIO/Projects/vibration_test/HeatPett/src",
+                "C:/Users/wolfi/Dokumente/PlatformIO/Projects/HeatPett/include",
+                "C:/Users/wolfi/Dokumente/PlatformIO/Projects/HeatPett/src",
                 "C:/Users/wolfi/.platformio/packages/framework-arduinoadafruitnrf52/libraries/Bluefruit52Lib/src",
                 "C:/Users/wolfi/.platformio/packages/framework-arduinoadafruitnrf52/libraries/Adafruit_nRFCrypto/src",
                 "C:/Users/wolfi/.platformio/packages/framework-arduinoadafruitnrf52/libraries/InternalFileSytem/src",
@@ -48,8 +48,8 @@
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,
                 "path": [
-                    "C:/Users/wolfi/Dokumente/PlatformIO/Projects/vibration_test/HeatPett/include",
-                    "C:/Users/wolfi/Dokumente/PlatformIO/Projects/vibration_test/HeatPett/src",
+                    "C:/Users/wolfi/Dokumente/PlatformIO/Projects/HeatPett/include",
+                    "C:/Users/wolfi/Dokumente/PlatformIO/Projects/HeatPett/src",
                     "C:/Users/wolfi/.platformio/packages/framework-arduinoadafruitnrf52/libraries/Bluefruit52Lib/src",
                     "C:/Users/wolfi/.platformio/packages/framework-arduinoadafruitnrf52/libraries/Adafruit_nRFCrypto/src",
                     "C:/Users/wolfi/.platformio/packages/framework-arduinoadafruitnrf52/libraries/InternalFileSytem/src",
