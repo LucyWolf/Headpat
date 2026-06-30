@@ -15,7 +15,7 @@
     "variant": "nicenano",
     "softdevice": {
       "sd_fwid": "0x00B6",
-      "sd_name": "S140",
+      "sd_name": "s140",
       "sd_version": "6.1.1",
       "sd_flags": 0
     }
