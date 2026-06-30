@@ -2,8 +2,9 @@
 #include <bluefruit.h>
 #include <nrf_gpio.h>
 #include <nrf_power.h>
+#include <HardwarePWM.h>
 
-#define VERSION "1.1.0"
+#define VERSION "1.1.6"
 
 // ═══════════════════════════════════════════
 //  PINS
@@ -265,7 +266,7 @@ void setup() {
   delay(500);
 
   Serial.println("══════════════════════════════");
-  Serial.print("  HeatPett v");
+  Serial.print("  Headpat v");
   Serial.println(VERSION);
   Serial.println("══════════════════════════════");
 
@@ -277,14 +278,29 @@ void setup() {
   stopMotors();
   digitalWrite(LED_PIN, LOW);
 
+  // Lower PWM frequency from default ~62 kHz to ~1 kHz for stronger ERM motor response
+  // nRF52840: 16MHz / DIV_64(250kHz) / COUNTERTOP(256) ≈ 976 Hz
+  HwPWM0.addPin(MOTOR_LEFT);
+  HwPWM0.addPin(MOTOR_RIGHT);
+  HwPWM0.setClockDiv(PWM_PRESCALER_PRESCALER_DIV_64);
+
   Serial.print("[SYS] Motor strength: ");
   Serial.println(motorStrength);
   Serial.println("[SYS] Commands: 's=255' to set strength (0-255)");
 
   startupVibration();
 
+  // High drive mode on motor pins after HwPWM has configured them (~15mA vs ~5mA default)
+  nrf_gpio_cfg(NRF_GPIO_PIN_MAP(1, 11),
+               NRF_GPIO_PIN_DIR_OUTPUT, NRF_GPIO_PIN_INPUT_DISCONNECT,
+               NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_H0H1, NRF_GPIO_PIN_NOSENSE);
+  nrf_gpio_cfg(NRF_GPIO_PIN_MAP(0, 10),
+               NRF_GPIO_PIN_DIR_OUTPUT, NRF_GPIO_PIN_INPUT_DISCONNECT,
+               NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_H0H1, NRF_GPIO_PIN_NOSENSE);
+  Serial.println("[SYS] Motor: 1kHz PWM + HIGH DRIVE enabled");
+
   Bluefruit.begin();
-  Bluefruit.setName("HeatPett");
+  Bluefruit.setName("Headpat");
 
   Bluefruit.Periph.setConnectCallback(connect_callback);
   Bluefruit.Periph.setDisconnectCallback(disconnect_callback);
@@ -319,7 +335,7 @@ void loop() {
 
     } else if (cmd == "info") {
       Serial.println("info");
-      Serial.println("HeatPett v" VERSION);
+      Serial.println("Headpat v" VERSION);
       Serial.println("Board: nRF52840");
       Serial.print  ("Connected: ");    Serial.println(connected   ? "YES" : "NO");
       Serial.print  ("Pairing mode: "); Serial.println(pairingMode ? "YES" : "NO");
@@ -360,7 +376,7 @@ void loop() {
     } else if (cmd == "meow") {
       Serial.println("meow");
       Serial.println("(^=◕ᴥ◕=^)");
-      Serial.println("HeatPett says: purrrr...");
+      Serial.println("Headpat says: purrrr...");
     }
   }
 
@@ -386,6 +402,12 @@ void loop() {
         int n = snprintf(msg, sizeof(msg), "[BAT] %d%%\n", pct);
         bleuart.write((uint8_t*)msg, n);
         Serial.print("[BAT] Requested, sent: "); Serial.print(pct); Serial.println("%");
+        continue;
+      }
+      if (data == 0xFB) {
+        char msg[32];
+        int n = snprintf(msg, sizeof(msg), "[VER] Headpat v" VERSION "\n");
+        bleuart.write((uint8_t*)msg, n);
         continue;
       }
 
