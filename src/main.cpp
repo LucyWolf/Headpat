@@ -3,7 +3,7 @@
 #include <nrf_gpio.h>
 #include <nrf_power.h>
 
-#define VERSION "1.0.2"
+#define VERSION "1.1.0"
 
 // ═══════════════════════════════════════════
 //  PINS
@@ -239,7 +239,9 @@ void goToSleep() {
 //  BLE CALLBACKS
 // ═══════════════════════════════════════════
 void connect_callback(uint16_t conn_handle) {
-  Serial.println("[BLE] Connected!");
+  uint32_t err = sd_ble_gatts_sys_attr_set(conn_handle, NULL, 0, 0);
+  Serial.print("[BLE] Connected! handle="); Serial.print(conn_handle);
+  Serial.print(" sys_attr_err="); Serial.println(err);
   connected   = true;
   pairingMode = false;
   firstBatAt  = millis() + 5000; // send battery 5s after connect (give dongle time to discover)
@@ -355,21 +357,6 @@ void loop() {
       Serial.print("VDDH:         "); Serial.print(vbat, 3); Serial.println(" V");
       Serial.print("Battery:      "); Serial.print(batteryPercent()); Serial.println("%");
 
-    } else if (cmd == "scan") {
-      // Scan all nRF52840 AIN pins to find battery
-      const int ainPins[] = {2, 3, 4, 5, 28, 29, 30, 31};
-      const char* ainNames[] = {"AIN0/P0.02","AIN1/P0.03","AIN2/P0.04","AIN3/P0.05",
-                                "AIN4/P0.28","AIN5/P0.29","AIN6/P0.30","AIN7/P0.31"};
-      Serial.println("scan");
-      analogReference(AR_INTERNAL_3_0);
-      analogReadResolution(12);
-      for (int i = 0; i < 8; i++) {
-        int raw = analogRead(ainPins[i]);
-        float v = raw * (3.0f / 4096.0f);
-        Serial.print(ainNames[i]); Serial.print(" raw="); Serial.print(raw);
-        Serial.print(" v="); Serial.print(v, 3); Serial.println("V");
-      }
-
     } else if (cmd == "meow") {
       Serial.println("meow");
       Serial.println("(^=◕ᴥ◕=^)");
@@ -394,7 +381,6 @@ void loop() {
         continue;
       }
       if (data == 0xFC) {
-        // Battery requested by dongle — respond immediately
         char msg[16];
         uint8_t pct = batteryPercent();
         int n = snprintf(msg, sizeof(msg), "[BAT] %d%%\n", pct);
