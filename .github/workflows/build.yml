@@ -33,14 +33,7 @@ jobs:
         run: pio pkg install
 
       - name: Build firmware
-        run: |
-          FW="$HOME/.platformio/packages/framework-arduinoadafruitnrf52"
-          echo "--- Find nrf_soc.h in framework ---"
-          find "$FW" -name "nrf_soc.h" 2>/dev/null || echo "nrf_soc.h NOT FOUND anywhere in framework"
-          echo "--- Framework top-level dirs ---"
-          ls "$FW"
-          echo "-----------------------------------"
-          pio run
+        run: pio run
 
       - name: Convert to UF2
         run: |
