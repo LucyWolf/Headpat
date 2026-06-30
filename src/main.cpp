@@ -12,7 +12,6 @@
 #define MOTOR_RIGHT  10   // D16 = P0.10
 #define LED_PIN      15   // P0.15
 #define BUTTON_PIN    6   // D1  = P0.06
-#define BATTERY_PIN    4  // P0.04 = AIN2 (SuperMini built-in battery divider)
 
 // ═══════════════════════════════════════════
 //  SETTINGS
@@ -56,6 +55,7 @@ bool sleepTriggered    = false;
 
 unsigned long buttonPressStart = 0;
 unsigned long lastBatSend      = 0;
+unsigned long firstBatAt       = 0;  // one-time early battery send timestamp
 unsigned long pairingStart     = 0;
 unsigned long lastPairingBlink = 0;
 
@@ -64,14 +64,64 @@ bool pairingLedState = false;
 // ═══════════════════════════════════════════
 //  BATTERY
 // ═══════════════════════════════════════════
+static int readVDDH_raw() {
+  // nRF52840 internal VDDHDIV5 channel — no GPIO needed
+  // Gain 1/6, 0.6V ref → VDDH = raw * 18 / 4096
+  unsigned long t;
+
+  // Safely stop SAADC regardless of current state (timeouts prevent hangs)
+  NRF_SAADC->TASKS_STOP = 1;
+  t = millis(); while (!NRF_SAADC->EVENTS_STOPPED && millis() - t < 10) {}
+  NRF_SAADC->EVENTS_STOPPED = 0;
+  NRF_SAADC->ENABLE = 0;
+  NRF_SAADC->INTENCLR = 0xFFFFFFFF; // disable all SAADC interrupts
+  NRF_SAADC->EVENTS_STARTED = 0;
+  NRF_SAADC->EVENTS_END     = 0;
+
+  for (int i = 0; i < 8; i++) { NRF_SAADC->CH[i].PSELP = 0; NRF_SAADC->CH[i].PSELN = 0; NRF_SAADC->CH[i].CONFIG = 0; }
+
+  NRF_SAADC->CH[0].PSELP  = SAADC_CH_PSELP_PSELP_VDDHDIV5;
+  NRF_SAADC->CH[0].PSELN  = SAADC_CH_PSELN_PSELN_NC;
+  NRF_SAADC->CH[0].CONFIG =
+    (SAADC_CH_CONFIG_GAIN_Gain1_6    << SAADC_CH_CONFIG_GAIN_Pos)   |
+    (SAADC_CH_CONFIG_REFSEL_Internal << SAADC_CH_CONFIG_REFSEL_Pos) |
+    (SAADC_CH_CONFIG_TACQ_40us       << SAADC_CH_CONFIG_TACQ_Pos)   |
+    (SAADC_CH_CONFIG_MODE_SE         << SAADC_CH_CONFIG_MODE_Pos);
+  NRF_SAADC->RESOLUTION    = SAADC_RESOLUTION_VAL_12bit;
+  NRF_SAADC->OVERSAMPLE    = 0;
+  NRF_SAADC->SAMPLERATE    = 0;
+
+  volatile int16_t buf     = 0;
+  NRF_SAADC->RESULT.PTR    = (uint32_t)&buf;
+  NRF_SAADC->RESULT.MAXCNT = 1;
+
+  NRF_SAADC->ENABLE = SAADC_ENABLE_ENABLE_Enabled;
+
+  NRF_SAADC->EVENTS_STARTED = 0;
+  NRF_SAADC->TASKS_START = 1;
+  t = millis(); while (!NRF_SAADC->EVENTS_STARTED && millis() - t < 20) {}
+  if (!NRF_SAADC->EVENTS_STARTED) { NRF_SAADC->ENABLE = 0; return 0; }
+  NRF_SAADC->EVENTS_STARTED = 0;
+
+  NRF_SAADC->EVENTS_END = 0;
+  NRF_SAADC->TASKS_SAMPLE = 1;
+  t = millis(); while (!NRF_SAADC->EVENTS_END && millis() - t < 20) {}
+  NRF_SAADC->EVENTS_END = 0;
+
+  NRF_SAADC->EVENTS_STOPPED = 0;
+  NRF_SAADC->TASKS_STOP = 1;
+  t = millis(); while (!NRF_SAADC->EVENTS_STOPPED && millis() - t < 10) {}
+  NRF_SAADC->EVENTS_STOPPED = 0;
+
+  NRF_SAADC->ENABLE       = 0;
+  NRF_SAADC->CH[0].PSELP = 0;
+  return (buf < 0) ? 0 : (int)buf;
+}
+
 uint8_t batteryPercent() {
-  analogReference(AR_INTERNAL_3_0);
-  analogReadResolution(12);
-  int raw = analogRead(BATTERY_PIN);
-  // SuperMini built-in divider: 100kΩ + 100kΩ → Vbat = Vpin * 2
-  float vpin = raw * (3.0f / 4096.0f);
-  float vbat = vpin * 2.0f;
-  int pct = (int)((vbat - 3.0f) / 1.2f * 100.0f);  // 3.0V=0%, 4.2V=100%
+  int raw    = readVDDH_raw();
+  float vbat = raw * 18.0f / 4096.0f;  // VDDH = raw * (3.6 * 5) / 4096
+  int pct    = (int)((vbat - 3.0f) / 1.2f * 100.0f);
   return (uint8_t)constrain(pct, 0, 100);
 }
 
@@ -192,7 +242,8 @@ void connect_callback(uint16_t conn_handle) {
   Serial.println("[BLE] Connected!");
   connected   = true;
   pairingMode = false;
-  lastBatSend = millis() - BATTERY_INTERVAL_MS; // send battery on next loop
+  firstBatAt  = millis() + 5000; // send battery 5s after connect (give dongle time to discover)
+  lastBatSend = millis();
   digitalWrite(LED_PIN, LOW);
   setNormalAdvertising();
 }
@@ -297,16 +348,12 @@ void loop() {
       Serial.print("Uptime: "); Serial.println(formatUptime());
 
     } else if (cmd == "battery") {
-      analogReference(AR_INTERNAL_3_0);
-      analogReadResolution(12);
-      int raw = analogRead(BATTERY_PIN);
-      float vpin = raw * (3.0f / 4096.0f);
-      float vbat = vpin * 2.0f;
+      int raw    = readVDDH_raw();
+      float vbat = raw * 18.0f / 4096.0f;
       Serial.println("battery");
-      Serial.print("Raw ADC: "); Serial.println(raw);
-      Serial.print("Vpin:    "); Serial.print(vpin, 3); Serial.println(" V");
-      Serial.print("Vbat:    "); Serial.print(vbat, 3); Serial.println(" V");
-      Serial.print("Battery: "); Serial.print(batteryPercent()); Serial.println("%");
+      Serial.print("Raw VDDHDIV5: "); Serial.println(raw);
+      Serial.print("VDDH:         "); Serial.print(vbat, 3); Serial.println(" V");
+      Serial.print("Battery:      "); Serial.print(batteryPercent()); Serial.println("%");
 
     } else if (cmd == "scan") {
       // Scan all nRF52840 AIN pins to find battery
@@ -346,6 +393,15 @@ void loop() {
         stopPairingMode();
         continue;
       }
+      if (data == 0xFC) {
+        // Battery requested by dongle — respond immediately
+        char msg[16];
+        uint8_t pct = batteryPercent();
+        int n = snprintf(msg, sizeof(msg), "[BAT] %d%%\n", pct);
+        bleuart.write((uint8_t*)msg, n);
+        Serial.print("[BAT] Requested, sent: "); Serial.print(pct); Serial.println("%");
+        continue;
+      }
 
       // Decode PatStrap nibble encoding (0x00–0xEF)
       unsigned int haptic_right = (data & 0x0F) << 4;
@@ -364,10 +420,15 @@ void loop() {
   }
 
   // ── Battery send ────────────────────────
-  if (connected && millis() - lastBatSend >= BATTERY_INTERVAL_MS) {
+  bool doEarly   = firstBatAt && millis() >= firstBatAt;
+  bool doRegular = millis() - lastBatSend >= BATTERY_INTERVAL_MS;
+  if (connected && (doEarly || doRegular)) {
+    if (doEarly) firstBatAt = 0;
     lastBatSend = millis();
+    char batMsg[16];
     uint8_t pct = batteryPercent();
-    bleuart.write(pct);
+    int n = snprintf(batMsg, sizeof(batMsg), "[BAT] %d%%\n", pct);
+    bleuart.write((uint8_t*)batMsg, n);
     Serial.print("[BAT] Sent: "); Serial.print(pct); Serial.println("%");
   }
 
