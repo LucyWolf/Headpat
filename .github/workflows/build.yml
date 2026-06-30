@@ -6,6 +6,7 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -20,6 +21,11 @@ jobs:
           path: ~/.platformio
           key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini') }}
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Install PlatformIO
         run: pip install platformio
 
@@ -28,10 +34,11 @@ jobs:
 
       - name: Convert to UF2
         run: |
-          python ~/.platformio/packages/framework-arduinoadafruitnrf52/tools/uf2conv/uf2conv.py \
-            --family 0xADA52840 -c \
-            -o headpat-firmware.uf2 \
-            .pio/build/nicenano/firmware.hex
+          pip install intelhex
+          wget -q https://raw.githubusercontent.com/microsoft/uf2/master/utils/uf2conv.py
+          wget -q https://raw.githubusercontent.com/microsoft/uf2/master/utils/uf2families.json
+          HEX=$(find .pio/build -name "firmware.hex" | head -1)
+          python uf2conv.py "$HEX" -c -b 0x26000 -f 0xADA52840 -o headpat-firmware.uf2
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
