@@ -29,8 +29,14 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
 
+      - name: Install PlatformIO packages
+        run: pio pkg install
+
       - name: Build firmware
-        run: pio run
+        run: |
+          FW="$HOME/.platformio/packages/framework-arduinoadafruitnrf52"
+          export PLATFORMIO_BUILD_FLAGS="-I${FW}/components/softdevice/s140/headers -I${FW}/components/softdevice/s140/headers/nrf52"
+          pio run
 
       - name: Convert to UF2
         run: |
