@@ -35,7 +35,10 @@ jobs:
       - name: Build firmware
         run: |
           FW="$HOME/.platformio/packages/framework-arduinoadafruitnrf52"
-          export PLATFORMIO_BUILD_FLAGS="-I${FW}/components/softdevice/s140/headers -I${FW}/components/softdevice/s140/headers/nrf52"
+          echo "--- SoftDevice headers ---"
+          ls "$FW/components/softdevice/s140/headers/" || echo "NOT FOUND"
+          echo "--------------------------"
+          export CPATH="${FW}/components/softdevice/s140/headers:${FW}/components/softdevice/s140/headers/nrf52"
           pio run
 
       - name: Convert to UF2
