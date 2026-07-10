@@ -4,7 +4,7 @@
 #include <nrf_power.h>
 #include <HardwarePWM.h>
 
-#define VERSION "1.1.7"
+#define VERSION "1.1.8"
 
 // ═══════════════════════════════════════════
 //  PINS
