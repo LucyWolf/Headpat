@@ -4,7 +4,7 @@
 #include <nrf_power.h>
 #include <HardwarePWM.h>
 
-#define VERSION "1.3.3"
+#define VERSION "1.3.4"
 
 // ═══════════════════════════════════════════
 //  PINS
@@ -130,19 +130,19 @@ uint8_t batteryPercent() {
 //  MOTOR
 // ═══════════════════════════════════════════
 void stopMotors() {
-  analogWrite(MOTOR_LEFT,  0);
-  analogWrite(MOTOR_RIGHT, 0);
+  HwPWM0.writePin(MOTOR_LEFT,  0);
+  HwPWM0.writePin(MOTOR_RIGHT, 0);
 }
 
 void startupVibration() {
   Serial.println("[VIBRATION] Startup START");
-  analogWrite(MOTOR_LEFT,  motorStrength);
-  analogWrite(MOTOR_RIGHT, motorStrength);
+  HwPWM0.writePin(MOTOR_LEFT,  motorStrength);
+  HwPWM0.writePin(MOTOR_RIGHT, motorStrength);
   delay(300);
   stopMotors();
   delay(150);
-  analogWrite(MOTOR_LEFT,  motorStrength);
-  analogWrite(MOTOR_RIGHT, motorStrength);
+  HwPWM0.writePin(MOTOR_LEFT,  motorStrength);
+  HwPWM0.writePin(MOTOR_RIGHT, motorStrength);
   delay(300);
   stopMotors();
   Serial.println("[VIBRATION] Startup DONE");
@@ -270,27 +270,20 @@ void setup() {
   Serial.println(VERSION);
   Serial.println("══════════════════════════════");
 
-  pinMode(MOTOR_LEFT,  OUTPUT);
-  pinMode(MOTOR_RIGHT, OUTPUT);
-  pinMode(LED_PIN,     OUTPUT);
-  pinMode(BUTTON_PIN,  INPUT_PULLUP);
-
-  stopMotors();
+  pinMode(LED_PIN,    OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
   digitalWrite(LED_PIN, LOW);
 
   // Lower PWM frequency from default ~62 kHz to ~1 kHz for stronger ERM motor response
   // nRF52840: 16MHz / DIV_64(250kHz) / COUNTERTOP(256) ≈ 976 Hz
+  // NOTE: addPin() must come BEFORE stopMotors() so HwPWM0.writePin() works from the start.
+  // analogWrite() uses a separate ANALOG_TOKEN ownership system and would bypass HwPWM0.
   HwPWM0.addPin(MOTOR_LEFT);
   HwPWM0.addPin(MOTOR_RIGHT);
   HwPWM0.setClockDiv(PWM_PRESCALER_PRESCALER_DIV_64);
 
-  Serial.print("[SYS] Motor strength: ");
-  Serial.println(motorStrength);
-  Serial.println("[SYS] Commands: 's=255' to set strength (0-255)");
-
-  startupVibration();
-
-  // High drive mode on motor pins after HwPWM has configured them (~15mA vs ~5mA default)
+  // High drive mode (~15mA vs ~5mA default) – must be set AFTER addPin() since
+  // addPin() calls pinMode() which resets GPIO drive to standard.
   nrf_gpio_cfg(NRF_GPIO_PIN_MAP(1, 11),
                NRF_GPIO_PIN_DIR_OUTPUT, NRF_GPIO_PIN_INPUT_DISCONNECT,
                NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_H0H1, NRF_GPIO_PIN_NOSENSE);
@@ -298,6 +291,14 @@ void setup() {
                NRF_GPIO_PIN_DIR_OUTPUT, NRF_GPIO_PIN_INPUT_DISCONNECT,
                NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_H0H1, NRF_GPIO_PIN_NOSENSE);
   Serial.println("[SYS] Motor: 1kHz PWM + HIGH DRIVE enabled");
+
+  stopMotors();
+
+  Serial.print("[SYS] Motor strength: ");
+  Serial.println(motorStrength);
+  Serial.println("[SYS] Commands: 's=255' set strength | 'testmotor' | 'testpin' | 'm:FF' direct motor");
+
+  startupVibration();
 
   Bluefruit.begin();
   Bluefruit.setName("Headpat");
@@ -373,6 +374,47 @@ void loop() {
       Serial.print("VDDH:         "); Serial.print(vbat, 3); Serial.println(" V");
       Serial.print("Battery:      "); Serial.print(batteryPercent()); Serial.println("%");
 
+    } else if (cmd == "testmotor") {
+      Serial.println("[TEST] Motor L volle Kraft 1s...");
+      HwPWM0.writePin(MOTOR_LEFT, 255);
+      delay(1000);
+      HwPWM0.writePin(MOTOR_LEFT, 0);
+      delay(500);
+      Serial.println("[TEST] Motor R volle Kraft 1s...");
+      HwPWM0.writePin(MOTOR_RIGHT, 255);
+      delay(1000);
+      HwPWM0.writePin(MOTOR_RIGHT, 0);
+      Serial.println("[TEST] fertig");
+
+    } else if (cmd == "testpin") {
+      // Bypasses all PWM abstraction - drives GPIO directly
+      Serial.println("[TEST] MOTOR_LEFT (P1.11) GPIO HIGH 2s...");
+      nrf_gpio_pin_dir_set(NRF_GPIO_PIN_MAP(1, 11), NRF_GPIO_PIN_DIR_OUTPUT);
+      nrf_gpio_pin_set(NRF_GPIO_PIN_MAP(1, 11));
+      delay(2000);
+      nrf_gpio_pin_clear(NRF_GPIO_PIN_MAP(1, 11));
+      Serial.println("[TEST] MOTOR_LEFT LOW");
+      delay(500);
+      Serial.println("[TEST] MOTOR_RIGHT (P0.10) GPIO HIGH 2s...");
+      nrf_gpio_pin_dir_set(NRF_GPIO_PIN_MAP(0, 10), NRF_GPIO_PIN_DIR_OUTPUT);
+      nrf_gpio_pin_set(NRF_GPIO_PIN_MAP(0, 10));
+      delay(2000);
+      nrf_gpio_pin_clear(NRF_GPIO_PIN_MAP(0, 10));
+      Serial.println("[TEST] MOTOR_RIGHT LOW - fertig");
+
+    } else if (cmd.startsWith("m:")) {
+      uint8_t data = (uint8_t)strtol(cmd.substring(2).c_str(), NULL, 16);
+      unsigned int haptic_right = (data & 0x0F) << 4;
+      unsigned int haptic_left  =  data & 0xF0;
+      haptic_right |= haptic_right >> 4;
+      haptic_left  |= haptic_left  >> 4;
+      haptic_left  = (haptic_left  * motorStrength) / 255;
+      haptic_right = (haptic_right * motorStrength) / 255;
+      HwPWM0.writePin(MOTOR_LEFT,  haptic_left);
+      HwPWM0.writePin(MOTOR_RIGHT, haptic_right);
+      Serial.print("[MOTOR] L="); Serial.print(haptic_left);
+      Serial.print(" R="); Serial.println(haptic_right);
+
     } else if (cmd == "meow") {
       Serial.println("meow");
       Serial.println("(^=◕ᴥ◕=^)");
@@ -420,8 +462,8 @@ void loop() {
       haptic_left  = (haptic_left  * motorStrength) / 255;
       haptic_right = (haptic_right * motorStrength) / 255;
 
-      analogWrite(MOTOR_LEFT,  haptic_left);
-      analogWrite(MOTOR_RIGHT, haptic_right);
+      HwPWM0.writePin(MOTOR_LEFT,  haptic_left);
+      HwPWM0.writePin(MOTOR_RIGHT, haptic_right);
     }
   } else {
     stopMotors();
