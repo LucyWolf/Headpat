@@ -35,6 +35,13 @@ jobs:
       - name: Install PlatformIO packages
         run: pio pkg install
 
+      - name: Inject version from tag
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [[ "$TAG" =~ ^v ]]; then VER="${TAG#v}"; else VER="0.0.0-dev"; fi
+          sed -i "s/#define VERSION\s*\"[^\"]*\"/#define VERSION \"$VER\"/" src/main.cpp
+          echo "Version set to $VER"
+
       - name: Build firmware
         run: pio run
 
