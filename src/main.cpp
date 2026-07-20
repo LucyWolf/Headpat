@@ -4,7 +4,7 @@
 #include <nrf_power.h>
 #include <HardwarePWM.h>
 
-#define VERSION "1.3.4"
+#define VERSION "1.3.5"
 
 // ═══════════════════════════════════════════
 //  PINS
@@ -28,6 +28,9 @@
 // UART command bytes (motor data uses 0x00–0xEF)
 #define CMD_PAIR    0xFE
 #define CMD_UNPAIR  0xFD
+#define CMD_SLEEP   0xFA
+
+#define AUTO_SLEEP_TIMEOUT_MS (5UL * 60UL * 1000UL)  // 5 min ohne Verbindung → sleep
 
 int motorStrength = 255;  // motor PWM strength (0-255), adjustable via serial
 
@@ -59,6 +62,7 @@ unsigned long lastBatSend      = 0;
 unsigned long firstBatAt       = 0;  // one-time early battery send timestamp
 unsigned long pairingStart     = 0;
 unsigned long lastPairingBlink = 0;
+unsigned long disconnectTime   = 0;  // millis() beim letzten BLE-Disconnect (0 = seit Boot)
 
 bool pairingLedState = false;
 
@@ -254,7 +258,8 @@ void connect_callback(uint16_t conn_handle) {
 void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
   Serial.print("[BLE] Disconnected! Reason=");
   Serial.println(reason);
-  connected = false;
+  connected      = false;
+  disconnectTime = millis();
   stopMotors();
 }
 
@@ -452,6 +457,11 @@ void loop() {
         bleuart.write((uint8_t*)msg, n);
         continue;
       }
+      if (data == CMD_SLEEP) {
+        Serial.println("[BLE] Remote: sleep command");
+        goToSleep();
+        continue;
+      }
 
       // Decode PatStrap nibble encoding (0x00–0xEF)
       unsigned int haptic_right = (data & 0x0F) << 4;
@@ -528,6 +538,14 @@ void loop() {
 
     buttonWasReleased = true;
     sleepTriggered    = false;
+  }
+
+  // ── Auto-sleep nach 5 Min ohne BLE-Verbindung ──
+  if (!connected && !pairingMode && !buttonPressed) {
+    if (millis() - disconnectTime >= AUTO_SLEEP_TIMEOUT_MS) {
+      Serial.println("[AUTO-SLEEP] 5 min ohne Verbindung");
+      goToSleep();
+    }
   }
 
   // ── Pairing mode LED blink ───────────────
