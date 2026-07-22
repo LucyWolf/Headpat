@@ -1,22 +1,21 @@
-# HeatPett
+# Headpat
 
 A wearable haptic headpat device for VRChat. When someone pats your avatar's head, two vibration motors on the physical device respond in real time.
 
 ## How it works
 
 ```
-VRChat  →  OSC  →  HeatPett Server  →  USB Serial  →  Dongle  →  BLE  →  HeatPett
+VRChat  →  OSC  →  Headpat Server  →  BLE  →  Headpat
 ```
 
 1. VRChat sends OSC contact data when the headpat area is touched
-2. The **HeatPett Server** (Windows app) receives the OSC signal and converts it to motor commands
-3. Commands are sent via USB serial to the **Dongle** (nice!nano plugged into PC)
-4. The Dongle forwards them over BLE to the **HeatPett** (nice!nano worn on head)
-5. The HeatPett drives two ERM vibration motors — left and right independently
+2. The **Headpat Server** (Windows/Linux app) receives the OSC signal and converts it to motor commands
+3. Commands are sent directly via Bluetooth to the **Headpat** (nice!nano worn on head)
+4. The Headpat drives two ERM vibration motors — left and right independently
 
 ## Hardware
 
-- 2× nice!nano (nRF52840) — one worn, one as USB dongle
+- 1× nice!nano (nRF52840)
 - 2× ERM vibration motors
 - LiPo battery
 - Tactile button
@@ -26,7 +25,7 @@ VRChat  →  OSC  →  HeatPett Server  →  USB Serial  →  Dongle  →  BLE  
 
 ## Firmware
 
-This repository contains the firmware for the **worn device** (HeatPett).
+This repository contains the firmware for the worn device.
 
 | Pin | Function |
 |-----|----------|
@@ -51,7 +50,22 @@ This repository contains the firmware for the **worn device** (HeatPett).
 | Button held | On |
 | Connected | Off |
 
-### Serial commands
+### BLE protocol (NUS)
+
+The device exposes a Nordic UART Service (NUS). The Headpat Server communicates via single-byte commands:
+
+| Byte | Description |
+|------|-------------|
+| `0x00`–`0xEF` | Motor command — high nibble = left (0–15), low nibble = right (0–15) |
+| `0xFA` | Sleep |
+| `0xFB` | Request firmware version |
+| `0xFC` | Request battery level |
+| `0xFD` | Unpair |
+| `0xFE` | Pair |
+
+Responses are sent as plain text over NUS TX, prefixed with `[BAT]` or `[VER]`.
+
+### USB debug commands
 
 Connect via USB at 115200 baud:
 
@@ -83,5 +97,4 @@ The firmware builds automatically on every push via GitHub Actions. Download the
 
 ## Related
 
-- [dongel_NRF](https://github.com/LucyWolf/dongel_NRF) — Dongle firmware
-- HeatPett Server — Windows app (OSC receiver + BLE bridge)
+- [Headpat Server](https://github.com/LucyWolf/Headpat-Server) — Windows/Linux app (OSC receiver + BLE bridge)
