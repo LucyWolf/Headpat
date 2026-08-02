@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m ' *)",
+      "PowerShell(& \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run --project-dir \"c:\\\\Users\\\\wolfi\\\\Dokumente\\\\PlatformIO\\\\Projects\\\\HeatPett\" 2>&1 | Select-Object -Last 30)",
+      "Bash(xargs grep -l \"holyiot\")",
+      "Bash(xargs grep -l \"pro_micro\\\\|promicro\\\\|pro micro\" -i)",
+      "Bash(xargs grep -l \"nrf52840\" -i)",
+      "Bash(xargs grep -l \"usb\\\\|micro\" -i)",
+      "Bash(xargs grep -l \"holyiot_nrf52840_usb\")",
+      "PowerShell($log = \"$env:APPDATA\\\\HeadpatServer\\\\crash.log\"; if \\(Test-Path $log\\) { Get-Content $log -Tail 60 } else { \"Kein crash.log gefunden\" })",
+      "PowerShell(Get-ChildItem \"$env:APPDATA\\\\HeadpatServer\\\\\" -ErrorAction SilentlyContinue)",
+      "Bash(git commit -m 'feat: HP-Sleep Button im Terminal-Panel \\(v3.7.6\\) *)",
+      "PowerShell(Get-Content \"$env:APPDATA\\\\HeadpatServer\\\\server.log\" -Tail 30)",
+      "PowerShell(Select-String -Path \"$env:APPDATA\\\\HeadpatServer\\\\server.log\" -Pattern \"GitHub|Netzwerk|erreichbar|warn|err|SSL|update|Update\" | Select-Object -Last 40)",
+      "PowerShell($resp = Invoke-RestMethod \"https://api.github.com/repos/LucyWolf/Headpat-Server/releases/latest\" -Headers @{\"User-Agent\"=\"check\"}; \"$\\($resp.tag_name\\) — $\\($resp.assets.name -join ', '\\)\")",
+      "PowerShell(& \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run --project-dir \"c:\\\\Users\\\\wolfi\\\\Dokumente\\\\PlatformIO\\\\Projects\\\\HeatPett\" 2>&1 | Select-Object -Last 50)",
+      "PowerShell(& \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run --project-dir \"c:\\\\Users\\\\wolfi\\\\Dokumente\\\\PlatformIO\\\\Projects\\\\HeatPett\" 2>&1 | Select-String \"\\\\[UF2\\\\]|ERROR|error|SUCCESS|FAILED\")",
+      "Bash(del \"C:\\\\Users\\\\wolfi\\\\.claude\\\\projects\\\\c--Users-wolfi-Dokumente-PlatformIO-Projects-HeatPett\\\\memory\\\\project_stable_versions.md\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('C:/Users/wolfi/Dokumente/HeatPett-Server/heatpett_server.py', encoding='utf-8'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
+      "PowerShell(python -c \"import ast; ast.parse\\(open\\('C:/Users/wolfi/Dokumente/HeatPett-Server/heatpett_server.py', encoding='utf-8'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
+      "PowerShell(& python3.14 -c \"import ast; ast.parse\\(open\\('C:/Users/wolfi/Dokumente/HeatPett-Server/heatpett_server.py', encoding='utf-8'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('heatpett_server.py'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
+      "Read(//c/Users/wolfi/AppData/Local/Microsoft/WindowsApps/**)",
+      "Read(//c//**)",
+      "Read(//c/Users/wolfi/.platformio/**)"
+    ]
+  }
+}
