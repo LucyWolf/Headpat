@@ -1,3 +1,5 @@
+🇬🇧 English | [🇩🇪 Deutsch](README.de.md)
+
 # Headpat
 
 A wearable haptic headpat device for VRChat. When someone pats your avatar's head, two vibration motors on the physical device respond in real time.
@@ -20,8 +22,6 @@ VRChat  →  OSC  →  Headpat Server  →  BLE  →  Headpat
 - LiPo battery
 - Tactile button
 - LED
-
-*Schaltplan folgt.*
 
 ## Firmware
 
